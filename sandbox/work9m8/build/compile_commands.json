@@ -1,0 +1,14 @@
+[
+{
+  "directory": "C:/workspace/work9m8/build",
+  "command": "C:\\mingw64\\bin\\gcc.exe  @CMakeFiles/work9m8.dir/includes_C.rsp -g -std=gnu11 -o CMakeFiles\\work9m8.dir\\src\\main.c.obj -c C:\\workspace\\work9m8\\src\\main.c",
+  "file": "C:/workspace/work9m8/src/main.c",
+  "output": "CMakeFiles/work9m8.dir/src/main.c.obj"
+},
+{
+  "directory": "C:/workspace/work9m8/build",
+  "command": "C:\\mingw64\\bin\\gcc.exe  @CMakeFiles/work9m8.dir/includes_C.rsp -g -std=gnu11 -o CMakeFiles\\work9m8.dir\\src\\sort.c.obj -c C:\\workspace\\work9m8\\src\\sort.c",
+  "file": "C:/workspace/work9m8/src/sort.c",
+  "output": "CMakeFiles/work9m8.dir/src/sort.c.obj"
+}
+]
