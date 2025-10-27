@@ -7,6 +7,7 @@
 \usepackage{xcolor}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
+\usepackage{hyperref}
 
 % 页面设置
 \geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
@@ -23,18 +24,31 @@
 \fancyfoot[C]{版本: 1.0.0 - \today}
 
 % 代码样式设置
-\lstset{
-    language=C,
-    keywordstyle=\color{blue}\bfseries,
-    commentstyle=\color{gray},
-    stringstyle=\color{red},
-    basicstyle=\ttfamily\small,
+\definecolor{codeblue}{rgb}{0.25,0.5,0.5}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegray},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
     breaklines=true,
+    captionpos=b,
+    keepspaces=true,
     numbers=left,
-    numberstyle=\tiny\color{gray},
-    frame=single,
-    framesep=5pt
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
 }
+
+\lstset{style=mystyle}
 
 \begin{document}
 
@@ -95,6 +109,9 @@
 
 % 正文部分
 \newpage
+\tableofcontents
+\newpage
+
 \section{实验目的}
 1. 掌握哈希表的基本原理，包括哈希函数设计与冲突解决策略的实现方法。
 
@@ -131,7 +148,7 @@
 \subsubsection{旋转操作实现}
 红黑树通过旋转操作调整结构而不破坏二叉搜索树性质：
 
-\begin{lstlisting}[caption=左旋操作实现]
+\begin{lstlisting}[language=C,caption=左旋操作实现]
 void left_rotate(RBNode *x) {
     RBNode *y = x->right;
     x->right = y->left;
@@ -279,7 +296,7 @@ Git作为分布式版本控制系统，在开发过程中发挥了重要作用�
 \subsection{哈希表扩容机制}
 当装载因子超过阈值时，哈希表需要扩容以保持性能：
 
-\begin{lstlisting}[caption=哈希表扩容实现]
+\begin{lstlisting}[language=C,caption=哈希表扩容实现]
 void resize(HashTable *ht) {
     int new_size = next_prime(ht->size * 2);
     RBNode **new_buckets = (RBNode **)malloc(new_size * sizeof(RBNode *));
@@ -312,8 +329,8 @@ void resize(HashTable *ht) {
 \item 通常将装载因子阈值设定为0.75
 \end{itemize}
 \subsection{数据结构设计}
-1. **红黑树节点结构**：
-\begin{lstlisting}
+1. \textbf{红黑树节点结构}：
+\begin{lstlisting}[language=C,caption=红黑树节点结构]
 enum Color { RED, BLACK };
 
 template <typename K, typename V>
@@ -330,8 +347,8 @@ struct RBNode {
 };
 \end{lstlisting}
 
-2. **哈希表结构**：
-\begin{lstlisting}
+2. \textbf{哈希表结构}：
+\begin{lstlisting}[language=C,caption=哈希表结构]
 typedef struct HashTable {
     RBNode **buckets; /* 指向根节点指针数组 */
     int size;   /* 桶数量 */
@@ -340,8 +357,8 @@ typedef struct HashTable {
 \end{lstlisting}
 
 \subsection{核心算法实现}
-1. **哈希表初始化**：
-\begin{lstlisting}
+1. \textbf{哈希表初始化}：
+\begin{lstlisting}[language=C,caption=哈希表初始化]
 // 全局NIL节点定义
 RBNode *NIL = NULL;
 
@@ -361,8 +378,8 @@ void InitHashTable(HashTable *ht, int size) {
 }
 \end{lstlisting}
 
-2. **红黑树插入操作**：
-\begin{lstlisting}
+2. \textbf{红黑树插入操作}：
+\begin{lstlisting}[language=C,caption=红黑树插入操作]
 Status InsertHash(HashTable *ht, int key, int value) {
     if (!ht || !ht->buckets) return ERROR;
     int idx = hash_func(ht, key);
@@ -376,8 +393,8 @@ Status InsertHash(HashTable *ht, int key, int value) {
 }
 \end{lstlisting}
 
-3. **红黑树删除操作**：
-\begin{lstlisting}
+3. \textbf{红黑树删除操作}：
+\begin{lstlisting}[language=C,caption=红黑树删除操作]
 Status DeleteHash(HashTable *ht, int key) {
     if (!ht || !ht->buckets) return ERROR;
     int idx = hash_func(ht, key);
@@ -625,7 +642,7 @@ Status DeleteHash(HashTable *ht, int key) {
 \end{itemize}
 
 \subsubsection{测试结果}
-```
+\begin{verbatim}
 Initial table:
 Bucket 0: (empty)
 Bucket 1: (empty)
@@ -878,7 +895,7 @@ Count = 5
 缺点：
 \begin{itemize}
 \item \textbf{实现复杂}：需要处理红黑树的各种旋转和着色情况，实现难度大
-\item \item \textbf{常数因子}：虽然时间复杂度优秀，但红黑树操作的常数因子较大，对于小数据量可能不如简单链表
+\item \textbf{常数因子}：虽然时间复杂度优秀，但红黑树操作的常数因子较大，对于小数据量可能不如简单链表
 \item \textbf{内存开销}：每个节点需要额外存储颜色信息和父节点指针，内存开销比链表大
 \end{itemize}
 
@@ -950,7 +967,7 @@ Count = 5
 \section{附录：源代码}
 
 \subsection{main.cpp}
-\begin{lstlisting}[language=C++]
+\begin{lstlisting}[language=C++,caption=main.cpp]
 #include <stdio.h>
 #include "RBTree_Hash.h"
 
@@ -987,7 +1004,7 @@ int main(void) {
 \end{lstlisting}
 
 \subsection{RBTree\_Hash.h}
-\begin{lstlisting}[language=C++]
+\begin{lstlisting}[language=C++,caption=RBTree\_Hash.h]
 #ifndef HASH_TABLE_RBT_H
 #define HASH_TABLE_RBT_H
 
@@ -1027,7 +1044,7 @@ void DisplayHash(HashTable *ht);
 \end{lstlisting}
 
 \subsection{RBTree\_Hash.cpp}
-\begin{lstlisting}[language=C++]
+\begin{lstlisting}[language=C++,caption=RBTree\_Hash.cpp]
 #include "RBTree_Hash.h"
 #include <stdlib.h>
 #include <stdio.h>
