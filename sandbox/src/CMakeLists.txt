@@ -16,4 +16,5 @@ add_executable(hash_map_chaining_demo
         ../实验报告杨恒熠+3124009862/RBTree_Hash.cpp
         ../实验报告杨恒熠+3124009862/RBTree_Hash.h
         ../实验报告杨恒熠+3124009862/main.cpp
+        ../hash_rbt_project/name_storage.c
 )
