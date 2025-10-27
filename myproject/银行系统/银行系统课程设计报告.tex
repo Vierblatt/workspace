@@ -1,0 +1,1540 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[UTF8]{ctex}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+
+% 页面设置
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+% 标题格式设置
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% 页眉页脚设置
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{银行业务模拟系统课程设计报告}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{数据结构课程设计}
+\setlength{\headheight}{15pt}
+
+% 代码样式设置
+\definecolor{codeblue}{rgb}{0.25,0.5,0.5}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegray},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\begin{document}
+
+% 封面
+\begin{center}
+\includegraphics[width=0.15\textwidth]{media/logo.png}
+
+\vspace{0.5cm}
+
+\textbf{\Large 数据结构课程设计报告}
+
+\vspace{1.0cm}
+
+\textbf{\Huge 银行业务模拟系统}
+
+\vspace{1.5cm}
+
+\begin{tabular}{ll}
+\textbf{学\quad 院：} & 计算机学院 \\
+\textbf{专\quad 业：} & 计算机科学与技术 \\
+\textbf{年\quad 级：} & 2022级 \\
+\textbf{学\quad 号：} & 3124009862 \\
+\textbf{学生姓名：} & 杨恒熠 \\
+\textbf{指导教师：} & 李小妹 \\
+\textbf{提交日期：} & 2025年11月
+\end{tabular}
+
+\vspace{2.0cm}
+
+\end{center}
+
+\newpage
+
+% 目录
+\tableofcontents
+\newpage
+
+% 正文
+\section{问题描述}
+根据《数据结构实验指导书》题目4的要求，设计并实现一个银行业务的事件驱动模拟系统，通过模拟方法求出客户在银行内逗留的平均时间。
+
+\subsection{业务规则}
+\begin{enumerate}
+\item 客户业务分为两种：
+  \begin{itemize}
+  \item 第一种：申请从银行得到一笔资金（取款或借款）
+  \item 第二种：向银行投入一笔资金（存款或还款）
+  \end{itemize}
+  
+\item 银行有两个服务窗口，相应地有两个队列：
+  \begin{itemize}
+  \item 客户到达银行后先排第一个队
+  \item 处理每个客户业务时，如果属于第一种业务且申请额超出银行现存资金总额而得不到满足，则立刻排入第二个队等候，直至满足时才离开银行；否则业务处理完后立刻离开银行
+  \end{itemize}
+  
+\item 每接待完一个第二种业务的客户，则顺序检查和处理第二个队列中的客户，对能满足的申请者予以满足，不能满足者重新排到第二个队列的队尾
+
+\item 营业时间结束时所有客户立即离开银行
+\end{enumerate}
+
+\section{系统设计}
+\subsection{架构设计}
+系统采用事件驱动架构，通过事件队列管理所有客户到达和离开事件，按时间顺序处理。系统主要包含以下几个模块：
+
+\begin{enumerate}
+\item \textbf{事件管理模块}：负责事件的创建、排序和调度
+\item \textbf{队列管理模块}：管理客户队列，包括正在等待服务的客户队列和因资金不足而等待的客户队列
+\item \textbf{客户管理模块}：负责客户的创建、销毁和业务处理
+\item \textbf{银行系统模块}：协调各个模块，维护银行状态
+\item \textbf{日志系统模块}：记录系统运行过程中的关键信息
+\end{enumerate}
+
+\subsection{数据结构设计}
+\subsubsection{客户结构体}
+\begin{lstlisting}[language=C,caption=客户结构体]
+typedef struct Customer {
+    int id;                 // 客户ID
+    int arrive_time;        // 到达时间
+    int duration;           // 服务时间
+    int amount;             // 交易金额（正数表示存款，负数表示取款）
+    struct Customer* next;  // 链表指针
+} Customer;
+\end{lstlisting}
+
+\subsubsection{事件结构体}
+\begin{lstlisting}[language=C,caption=事件结构体]
+typedef struct Event {
+    int occur_time;              // 事件发生时间
+    EventType event_type;        // 事件类型
+    struct Customer* customer;   // 相关客户
+    struct Event* next;          // 链表指针
+} Event;
+\end{lstlisting}
+
+\subsubsection{队列结构体}
+\begin{lstlisting}[language=C,caption=队列结构体]
+typedef struct Queue {
+    Customer* front;  // 队首指针
+    Customer* rear;   // 队尾指针
+    int size;         // 队列大小
+} Queue;
+\end{lstlisting}
+
+\subsubsection{银行系统结构体}
+\begin{lstlisting}[language=C,caption=银行系统结构体]
+typedef struct BankSystem {
+    int total_money;        // 银行总资金
+    int current_time;       // 当前时间
+    int close_time;         // 关门时间
+    int customer_count;     // 客户计数器
+    Queue queue1;           // 第一个队列（正在等待服务的客户）
+    Queue queue2;           // 第二个队列（因资金不足而等待的客户）
+    Event* event_list;      // 事件列表
+    int total_customers;    // 总客户数
+    long long total_wait_time;  // 总等待时间
+    FILE* log_fp;           // 日志文件指针
+    LogLevel log_level;     // 日志级别
+} BankSystem;
+\end{lstlisting}
+
+\subsection{核心算法}
+\subsubsection{事件驱动模拟}
+系统采用事件驱动的方式进行模拟，主要处理两类事件：
+\begin{enumerate}
+\item 客户到达事件
+\item 客户离开事件
+\end{enumerate}
+
+事件按照发生时间顺序存储在事件列表中，每次取出最早发生的事件进行处理。
+
+\subsubsection{客户服务流程}
+\begin{enumerate}
+\item 客户到达时，加入第一个队列
+\item 队列首客户接受服务，创建离开事件
+\item 根据业务类型和银行资金情况决定客户去向：
+  \begin{itemize}
+  \item 存款业务：直接完成，更新银行资金
+  \item 取款业务：资金充足则完成，资金不足则加入等待队列
+  \end{itemize}
+\item 存款业务完成后，检查并处理等待队列中的客户
+\end{enumerate}
+
+\subsubsection{等待队列处理}
+每当有存款业务完成时，系统会检查等待队列中的客户：
+\begin{enumerate}
+\item 按顺序检查每个客户是否可以获得服务
+\item 能满足的客户完成交易
+\item 不能满足的客户重新排队
+\item 当银行资金不再增加或处理一定数量客户后停止检查
+\end{enumerate}
+
+\section{系统实现}
+\subsection{错误处理机制}
+系统采用统一的错误码机制，所有函数返回值都遵循以下规范：
+\begin{itemize}
+\item \texttt{BANK\_SUCCESS}: 操作成功
+\item \texttt{BANK\_ERROR\_INVALID\_PARAM}: 无效参数
+\item \texttt{BANK\_ERROR\_MEMORY\_ALLOC}: 内存分配失败
+\item \texttt{BANK\_ERROR\_FILE\_OP}: 文件操作失败
+\item \texttt{BANK\_ERROR\_QUEUE\_OP}: 队列操作失败
+\item \texttt{BANK\_ERROR\_EVENT\_OP}: 事件操作失败
+\end{itemize}
+
+\subsection{日志系统}
+系统实现了分级日志系统，支持DEBUG、INFO、WARN、ERROR四个级别，可通过配置文件或命令行参数控制日志级别和输出位置。
+
+\subsection{配置管理}
+系统支持通过配置文件进行参数配置，配置文件格式如下：
+
+```
+# 银行模拟系统配置文件
+
+# 初始资金
+initial_money = 10000
+
+# 营业时间（分钟）
+close_time = 600
+
+# 是否启用日志
+enable_log = 1
+
+# 日志级别 (0=DEBUG, 1=INFO, 2=WARN, 3=ERROR)
+log_level = 1
+
+# 日志文件路径
+log_file = bank_simulation.log
+\end{verbatim}
+
+\subsection{主要功能模块}
+\subsubsection{队列操作}
+\begin{itemize}
+\item \texttt{init\_queue}: 初始化队列
+\item \texttt{is\_queue\_empty}: 检查队列是否为空
+\item \texttt{get\_queue\_size}: 获取队列大小
+\item \texttt{enqueue}: 入队操作
+\item \texttt{dequeue}: 出队操作
+\item \texttt{queue\_front}: 获取队首元素
+\end{itemize}
+
+\subsubsection{事件管理}
+\begin{itemize}
+\item \texttt{insert\_event}: 插入事件（按时间顺序）
+\item \texttt{get\_next\_event}: 获取下一个事件
+\end{itemize}
+
+\subsubsection{客户管理}
+\begin{itemize}
+\item \texttt{create\_customer}: 创建随机客户
+\item \texttt{destroy\_customer}: 销毁客户
+\item \texttt{handle\_arrive\_event}: 处理客户到达事件
+\item \texttt{handle\_leave\_event}: 处理客户离开事件
+\item \texttt{process\_queue2}: 处理等待队列
+\end{itemize}
+
+\subsubsection{系统控制}
+\begin{itemize}
+\item \texttt{init\_bank\_system}: 初始化银行系统
+\item \texttt{destroy\_bank\_system}: 销毁银行系统
+\item \texttt{run\_simulation}: 运行模拟
+\item \texttt{print\_statistics}: 打印统计信息
+\item \texttt{bank\_log}: 写日志
+\item \texttt{load\_config}: 加载配置文件
+\end{itemize}
+
+\subsection{关键处理逻辑}
+\subsubsection{客户到达处理}
+\begin{enumerate}
+\item 创建客户对象，随机生成服务时间和交易金额
+\item 将客户加入第一个队列
+\item 生成下一个客户到达事件
+\end{enumerate}
+
+\subsubsection{客户离开处理}
+\begin{enumerate}
+\item 计算客户逗留时间并累加
+\item 根据业务类型处理：
+  \begin{itemize}
+  \item 存款：增加银行资金，处理等待队列
+  \item 取款：检查资金是否充足，充足则完成，不足则加入等待队列
+  \end{itemize}
+\end{enumerate}
+
+\subsubsection{等待队列处理}
+\begin{enumerate}
+\item 按顺序检查等待队列中的客户
+\item 资金充足的客户完成交易
+\item 资金仍不足的客户重新排队
+\item 适当条件下停止处理以避免无限循环
+\end{enumerate}
+
+\section{测试与分析}
+\subsection{测试方案}
+\subsubsection{测试数据设置}
+\begin{itemize}
+\item 初始资金：10000元
+\item 营业时间：600分钟
+\item 客户到达间隔：1-10分钟随机
+\item 服务时间：1-20分钟随机
+\item 交易金额：-5000到5000元随机
+\end{itemize}
+
+\subsubsection{极端情况测试}
+\begin{enumerate}
+\item 客户到达间隔短，服务时间长
+\item 客户到达间隔长，服务时间短
+\end{enumerate}
+
+\subsection{运行结果}
+经过测试运行，系统能够正确处理所有客户事件，准确计算客户平均逗留时间，并合理处理资金不足情况。
+
+\subsubsection{典型运行结果}
+\begin{verbatim}
+Bank Simulation System
+======================
+Initial money: 10000
+Close time: 600 minutes
+Logging enabled, level: 0, file: bank_simulation.log
+
+Running simulation...
+========================
+Simulation completed, statistics:
+Total customers: 114
+Total wait time: 33797 minutes
+Average stay time: 296.46 minutes
+Final bank money: 10000 yuan
+Remaining customers in waiting queue: 0
+\end{verbatim}
+
+\subsection{性能分析}
+\subsubsection{时间复杂度}
+\begin{itemize}
+\item 事件插入操作：$O(n)$，其中n为当前事件列表长度
+\item 事件获取操作：$O(1)$
+\item 队列操作：$O(1)$
+\item 总体时间复杂度：$O(n^2)$，其中n为总事件数
+\end{itemize}
+
+\subsubsection{空间复杂度}
+\begin{itemize}
+\item 客户对象：$O(n)$，其中n为客户数
+\item 事件列表：$O(n)$，其中n为事件数
+\item 队列存储：$O(n)$，其中n为队列中客户数
+\item 总体空间复杂度：$O(n)$
+\end{itemize}
+
+\section{总结与体会}
+\subsection{系统特点}
+\subsubsection{优点}
+\begin{enumerate}
+\item \textbf{事件驱动}：采用事件驱动模拟，时间效率高
+\item \textbf{动态内存管理}：使用动态内存分配，内存使用灵活
+\item \textbf{模块化设计}：功能模块划分清晰，便于维护和扩展
+\item \textbf{完整统计}：提供详细的统计信息，便于分析
+\item \textbf{错误处理}：完善的错误处理机制，提高系统健壮性
+\item \textbf{日志系统}：分级日志系统，便于调试和监控
+\item \textbf{配置管理}：支持配置文件，提高系统灵活性
+\end{enumerate}
+
+\subsubsection{可能的改进}
+\begin{enumerate}
+\item \textbf{图形界面}：可以添加图形界面以更直观地显示模拟过程
+\item \textbf{参数配置文件}：可以通过配置文件设置模拟参数
+\item \textbf{日志记录}：添加详细的日志记录功能
+\item \textbf{多窗口支持}：实现真正的多窗口服务
+\item \textbf{性能优化}：使用优先队列优化事件处理时间复杂度
+\end{enumerate}
+
+\subsection{收获与体会}
+通过本次课程设计，我深入理解了事件驱动模拟的思想，掌握了队列、链表等数据结构的实际应用。在实现过程中，我遇到了许多挑战，如事件顺序处理、等待队列管理等，通过不断调试和优化，最终完成了系统的设计与实现。
+
+这次课程设计不仅提高了我的编程能力，更重要的是让我学会了如何将理论知识应用到实际问题中，对数据结构的理解也更加深刻。特别是在优化代码结构、完善错误处理机制和实现日志系统方面，我学到了很多大厂开发的实践经验。
+
+\section{参考文献}
+\begin{enumerate}
+\item 吴伟民等. 《数据结构》. 广东工业大学计算机学院，2015.1
+\item 严蔚敏, 吴伟民. 《数据结构（C语言版）》. 清华大学出版社
+\item 数据结构实验指导书（2015春）
+\end{enumerate}
+
+\section{附录}
+\subsection{源代码}
+\subsubsection{bank\_simulation.h}
+\begin{lstlisting}[language=C,caption=bank\_simulation.h]
+/**
+ * @file bank_simulation.h
+ * @brief 银行模拟系统头文件
+ * @author Yang Hengyi
+ * @version 1.0
+ * @date 2025-11-27
+ */
+
+#ifndef BANK_SIMULATION_H
+#define BANK_SIMULATION_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
+#include <stdarg.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// 常量定义
+#define MAX_LINE_LENGTH 1024
+#define DEFAULT_INITIAL_MONEY 10000
+#define DEFAULT_CLOSE_TIME 600
+#define MIN_SERVICE_TIME 1
+#define MAX_SERVICE_TIME 20
+#define MIN_ARRIVAL_INTERVAL 1
+#define MAX_ARRIVAL_INTERVAL 10
+#define MIN_TRANSACTION_AMOUNT -5000
+#define MAX_TRANSACTION_AMOUNT 5000
+
+// 错误码定义
+#define BANK_SUCCESS 0
+#define BANK_ERROR_INVALID_PARAM -1
+#define BANK_ERROR_MEMORY_ALLOC -2
+#define BANK_ERROR_FILE_OP -3
+#define BANK_ERROR_QUEUE_OP -4
+#define BANK_ERROR_EVENT_OP -5
+
+// 事件类型枚举
+typedef enum {
+    EVENT_ARRIVE = 0,  // 客户到达事件
+    EVENT_LEAVE = 1    // 客户离开事件
+} EventType;
+
+// 客户业务类型枚举
+typedef enum {
+    BUSINESS_WITHDRAW = 0,  // 取款/借款
+    BUSINESS_DEPOSIT = 1    // 存款/还款
+} BusinessType;
+
+// 日志级别枚举
+typedef enum {
+    LOG_LEVEL_DEBUG = 0,
+    LOG_LEVEL_INFO = 1,
+    LOG_LEVEL_WARN = 2,
+    LOG_LEVEL_ERROR = 3
+} LogLevel;
+
+// 客户结构体
+typedef struct Customer {
+    int id;                 // 客户ID
+    int arrive_time;        // 到达时间
+    int duration;           // 服务时间
+    int amount;             // 交易金额（正数表示存款，负数表示取款）
+    struct Customer* next;  // 链表指针
+} Customer;
+
+// 事件结构体
+typedef struct Event {
+    int occur_time;              // 事件发生时间
+    EventType event_type;        // 事件类型
+    struct Customer* customer;   // 相关客户
+    struct Event* next;          // 链表指针
+} Event;
+
+// 队列结构体
+typedef struct Queue {
+    Customer* front;  // 队首指针
+    Customer* rear;   // 队尾指针
+    int size;         // 队列大小
+} Queue;
+
+// 银行系统配置结构体
+typedef struct BankConfig {
+    int initial_money;      // 初始资金
+    int close_time;         // 关门时间
+    int enable_log;         // 是否启用日志
+    LogLevel log_level;     // 日志级别
+    char log_file[256];     // 日志文件路径
+} BankConfig;
+
+// 银行系统结构体
+typedef struct BankSystem {
+    int total_money;        // 银行总资金
+    int current_time;       // 当前时间
+    int close_time;         // 关门时间
+    int customer_count;     // 客户计数器
+    Queue queue1;           // 第一个队列（正在等待服务的客户）
+    Queue queue2;           // 第二个队列（因资金不足而等待的客户）
+    Event* event_list;      // 事件列表
+    int total_customers;    // 总客户数
+    long long total_wait_time;  // 总等待时间
+    FILE* log_fp;           // 日志文件指针
+    LogLevel log_level;     // 日志级别
+} BankSystem;
+
+// 函数声明
+
+/**
+ * @brief 初始化银行系统
+ * @param bank 银行系统指针
+ * @param config 配置信息
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int init_bank_system(BankSystem* bank, const BankConfig* config);
+
+/**
+ * @brief 销毁银行系统
+ * @param bank 银行系统指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int destroy_bank_system(BankSystem* bank);
+
+/**
+ * @brief 初始化队列
+ * @param q 队列指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int init_queue(Queue* q);
+
+/**
+ * @brief 检查队列是否为空
+ * @param q 队列指针
+ * @return 空返回1，非空返回0
+ */
+int is_queue_empty(const Queue* q);
+
+/**
+ * @brief 获取队列大小
+ * @param q 队列指针
+ * @return 队列大小
+ */
+int get_queue_size(const Queue* q);
+
+/**
+ * @brief 入队
+ * @param q 队列指针
+ * @param customer 客户指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int enqueue(Queue* q, Customer* customer);
+
+/**
+ * @brief 出队
+ * @param q 队列指针
+ * @return 客户指针，失败返回NULL
+ */
+Customer* dequeue(Queue* q);
+
+/**
+ * @brief 获取队首元素
+ * @param q 队列指针
+ * @return 客户指针，失败返回NULL
+ */
+Customer* queue_front(const Queue* q);
+
+/**
+ * @brief 插入事件（按时间顺序）
+ * @param event_list 事件列表指针的指针
+ * @param event 事件指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int insert_event(Event** event_list, Event* event);
+
+/**
+ * @brief 获取下一个事件
+ * @param event_list 事件列表指针的指针
+ * @return 事件指针，失败返回NULL
+ */
+Event* get_next_event(Event** event_list);
+
+/**
+ * @brief 创建客户
+ * @param id 客户ID
+ * @param arrive_time 到达时间
+ * @return 客户指针，失败返回NULL
+ */
+Customer* create_customer(int id, int arrive_time);
+
+/**
+ * @brief 销毁客户
+ * @param customer 客户指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int destroy_customer(Customer* customer);
+
+/**
+ * @brief 处理客户到达事件
+ * @param bank 银行系统指针
+ * @param event 事件指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int handle_arrive_event(BankSystem* bank, Event* event);
+
+/**
+ * @brief 处理客户离开事件
+ * @param bank 银行系统指针
+ * @param event 事件指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int handle_leave_event(BankSystem* bank, Event* event);
+
+/**
+ * @brief 处理等待队列中的客户
+ * @param bank 银行系统指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int process_queue2(BankSystem* bank);
+
+/**
+ * @brief 运行模拟
+ * @param bank 银行系统指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int run_simulation(BankSystem* bank);
+
+/**
+ * @brief 打印统计信息
+ * @param bank 银行系统指针
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int print_statistics(const BankSystem* bank);
+
+/**
+ * @brief 写日志
+ * @param bank 银行系统指针
+ * @param level 日志级别
+ * @param format 格式化字符串
+ * @param ... 可变参数
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int bank_log(const BankSystem* bank, LogLevel level, const char* format, ...);
+
+/**
+ * @brief 加载配置文件
+ * @param config 配置结构体指针
+ * @param filename 配置文件名
+ * @return 成功返回BANK_SUCCESS，失败返回错误码
+ */
+int load_config(BankConfig* config, const char* filename);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // BANK_SIMULATION_H
+\end{lstlisting}
+
+\subsubsection{bank\_simulation.c}
+\begin{lstlisting}[language=C,caption=bank\_simulation.c]
+/**
+ * @file bank_simulation.c
+ * @brief 银行模拟系统实现文件
+ * @author Yang Hengyi
+ * @version 1.0
+ * @date 2025-11-27
+ */
+
+#include "../include/bank_simulation.h"
+#include <stdarg.h>
+#include <math.h>
+
+// 日志级别字符串映射
+static const char* log_level_strings[] = {
+    "DEBUG",
+    "INFO",
+    "WARN",
+    "ERROR"
+};
+
+/**
+ * @brief 初始化银行系统
+ */
+int init_bank_system(BankSystem* bank, const BankConfig* config) {
+    if (!bank || !config) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    // 初始化银行系统参数
+    bank->total_money = config->initial_money;
+    bank->current_time = 0;
+    bank->close_time = config->close_time;
+    bank->total_customers = 0;
+    bank->total_wait_time = 0;
+    bank->customer_count = 0;
+    bank->event_list = NULL;
+
+    // 初始化队列
+    if (init_queue(&bank->queue1) != BANK_SUCCESS) {
+        return BANK_ERROR_QUEUE_OP;
+    }
+    
+    if (init_queue(&bank->queue2) != BANK_SUCCESS) {
+        return BANK_ERROR_QUEUE_OP;
+    }
+
+    // 初始化日志
+    bank->log_level = config->log_level;
+    if (config->enable_log && strlen(config->log_file) > 0) {
+        bank->log_fp = fopen(config->log_file, "w");
+        if (!bank->log_fp) {
+            fprintf(stderr, "Warning: Failed to open log file %s\n", config->log_file);
+            bank->log_fp = stdout;
+        }
+    } else {
+        bank->log_fp = NULL;
+    }
+
+    // 创建第一个客户到达事件
+    Customer* first_customer = create_customer(bank->customer_count++, 0);
+    if (!first_customer) {
+        return BANK_ERROR_MEMORY_ALLOC;
+    }
+
+    Event* first_event = (Event*)malloc(sizeof(Event));
+    if (!first_event) {
+        destroy_customer(first_customer);
+        return BANK_ERROR_MEMORY_ALLOC;
+    }
+
+    first_event->occur_time = 0;
+    first_event->event_type = EVENT_ARRIVE;
+    first_event->customer = first_customer;
+    first_event->next = NULL;
+
+    if (insert_event(&bank->event_list, first_event) != BANK_SUCCESS) {
+        free(first_event);
+        destroy_customer(first_customer);
+        return BANK_ERROR_EVENT_OP;
+    }
+
+    bank_log(bank, LOG_LEVEL_INFO, "Bank system initialized with initial money: %d, close time: %d", 
+             config->initial_money, config->close_time);
+
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 销毁银行系统
+ */
+int destroy_bank_system(BankSystem* bank) {
+    if (!bank) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    // 释放所有事件
+    while (bank->event_list) {
+        Event* event = get_next_event(&bank->event_list);
+        if (event) {
+            if (event->customer) {
+                destroy_customer(event->customer);
+            }
+            free(event);
+        }
+    }
+
+    // 释放队列中的所有客户
+    Customer* customer;
+    while ((customer = dequeue(&bank->queue1)) != NULL) {
+        destroy_customer(customer);
+    }
+
+    while ((customer = dequeue(&bank->queue2)) != NULL) {
+        destroy_customer(customer);
+    }
+
+    // 关闭日志文件
+    if (bank->log_fp && bank->log_fp != stdout) {
+        fclose(bank->log_fp);
+    }
+
+    bank_log(bank, LOG_LEVEL_INFO, "Bank system destroyed");
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 初始化队列
+ */
+int init_queue(Queue* q) {
+    if (!q) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+    q->front = NULL;
+    q->rear = NULL;
+    q->size = 0;
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 检查队列是否为空
+ */
+int is_queue_empty(const Queue* q) {
+    if (!q) {
+        return 1;
+    }
+    return q->front == NULL;
+}
+
+/**
+ * @brief 获取队列大小
+ */
+int get_queue_size(const Queue* q) {
+    if (!q) {
+        return 0;
+    }
+    return q->size;
+}
+
+/**
+ * @brief 入队
+ */
+int enqueue(Queue* q, Customer* customer) {
+    if (!q || !customer) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    customer->next = NULL;
+
+    if (is_queue_empty(q)) {
+        q->front = customer;
+        q->rear = customer;
+    } else {
+        q->rear->next = customer;
+        q->rear = customer;
+    }
+
+    q->size++;
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 出队
+ */
+Customer* dequeue(Queue* q) {
+    if (!q || is_queue_empty(q)) {
+        return NULL;
+    }
+
+    Customer* customer = q->front;
+    q->front = q->front->next;
+
+    if (q->front == NULL) {
+        q->rear = NULL;
+    }
+
+    customer->next = NULL;
+    q->size--;
+
+    return customer;
+}
+
+/**
+ * @brief 获取队首元素
+ */
+Customer* queue_front(const Queue* q) {
+    if (!q || is_queue_empty(q)) {
+        return NULL;
+    }
+    return q->front;
+}
+
+/**
+ * @brief 插入事件（按时间顺序）
+ */
+int insert_event(Event** event_list, Event* event) {
+    if (!event_list || !event) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    // 如果事件列表为空或新事件时间早于第一个事件
+    if (*event_list == NULL || (*event_list)->occur_time > event->occur_time) {
+        event->next = *event_list;
+        *event_list = event;
+        return BANK_SUCCESS;
+    }
+
+    // 查找插入位置
+    Event* current = *event_list;
+    while (current->next != NULL && current->next->occur_time <= event->occur_time) {
+        current = current->next;
+    }
+
+    event->next = current->next;
+    current->next = event;
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 获取下一个事件
+ */
+Event* get_next_event(Event** event_list) {
+    if (!event_list || *event_list == NULL) {
+        return NULL;
+    }
+
+    Event* event = *event_list;
+    *event_list = (*event_list)->next;
+    event->next = NULL;
+    return event;
+}
+
+/**
+ * @brief 创建客户
+ */
+Customer* create_customer(int id, int arrive_time) {
+    Customer* customer = (Customer*)malloc(sizeof(Customer));
+    if (!customer) {
+        return NULL;
+    }
+
+    customer->id = id;
+    customer->arrive_time = arrive_time;
+
+    // 随机生成服务时间（1-20分钟）
+    customer->duration = rand() % (MAX_SERVICE_TIME - MIN_SERVICE_TIME + 1) + MIN_SERVICE_TIME;
+
+    // 随机生成交易金额（-5000到5000元）
+    customer->amount = rand() % (MAX_TRANSACTION_AMOUNT - MIN_TRANSACTION_AMOUNT + 1) + MIN_TRANSACTION_AMOUNT;
+
+    customer->next = NULL;
+
+    return customer;
+}
+
+/**
+ * @brief 销毁客户
+ */
+int destroy_customer(Customer* customer) {
+    if (!customer) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+    free(customer);
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 处理客户到达事件
+ */
+int handle_arrive_event(BankSystem* bank, Event* event) {
+    if (!bank || !event || !event->customer) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    Customer* customer = event->customer;
+
+    // 将客户加入第一个队列
+    if (enqueue(&bank->queue1, customer) != BANK_SUCCESS) {
+        bank_log(bank, LOG_LEVEL_ERROR, "Failed to enqueue customer %d", customer->id);
+        destroy_customer(customer);
+        free(event);
+        return BANK_ERROR_QUEUE_OP;
+    }
+
+    bank->total_customers++;
+
+    bank_log(bank, LOG_LEVEL_INFO, "Time %d: Customer %d arrived, transaction amount %d, service time %d", 
+             bank->current_time, customer->id, customer->amount, customer->duration);
+
+    // 生成下一个客户到达事件
+    if (bank->current_time < bank->close_time) {
+        // 下一个客户到达的时间间隔（1-10分钟）
+        int interval = rand() % (MAX_ARRIVAL_INTERVAL - MIN_ARRIVAL_INTERVAL + 1) + MIN_ARRIVAL_INTERVAL;
+        int next_arrive_time = bank->current_time + interval;
+
+        if (next_arrive_time < bank->close_time) {
+            Customer* next_customer = create_customer(bank->customer_count++, next_arrive_time);
+            if (next_customer) {
+                Event* next_event = (Event*)malloc(sizeof(Event));
+                if (next_event) {
+                    next_event->occur_time = next_arrive_time;
+                    next_event->event_type = EVENT_ARRIVE;
+                    next_event->customer = next_customer;
+                    next_event->next = NULL;
+
+                    if (insert_event(&bank->event_list, next_event) != BANK_SUCCESS) {
+                        bank_log(bank, LOG_LEVEL_WARN, "Failed to insert next arrival event");
+                        destroy_customer(next_customer);
+                        free(next_event);
+                        // 不返回错误，因为主流程仍然可以继续
+                    }
+                } else {
+                    destroy_customer(next_customer);
+                }
+            }
+        }
+    }
+
+    free(event);
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 处理客户离开事件
+ */
+int handle_leave_event(BankSystem* bank, Event* event) {
+    if (!bank || !event || !event->customer) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    Customer* customer = event->customer;
+
+    // 计算客户在银行的总逗留时间
+    int stay_time = bank->current_time - customer->arrive_time;
+    bank->total_wait_time += stay_time;
+
+    bank_log(bank, LOG_LEVEL_INFO, "Time %d: Customer %d leaving, transaction amount %d, total stay time %d", 
+             bank->current_time, customer->id, customer->amount, stay_time);
+
+    // 如果是存款或还款业务（金额为正）
+    if (customer->amount > 0) {
+        bank->total_money += customer->amount;
+        bank_log(bank, LOG_LEVEL_INFO, "  Bank money increased by %d, current total %d", 
+                 customer->amount, bank->total_money);
+
+        // 处理第二个队列中等待的客户
+        process_queue2(bank);
+    } 
+    // 如果是取款或借款业务（金额为负）
+    else {
+        // 检查银行是否有足够资金
+        if (bank->total_money >= abs(customer->amount)) {
+            bank->total_money += customer->amount; // amount为负数
+            bank_log(bank, LOG_LEVEL_INFO, "  Bank money decreased by %d, current total %d", 
+                     abs(customer->amount), bank->total_money);
+        } else {
+            // 资金不足，将客户加入第二个队列
+            bank_log(bank, LOG_LEVEL_INFO, "  Insufficient funds, customer %d added to waiting queue", customer->id);
+            if (enqueue(&bank->queue2, customer) != BANK_SUCCESS) {
+                bank_log(bank, LOG_LEVEL_ERROR, "Failed to enqueue customer %d to waiting queue", customer->id);
+                destroy_customer(customer);
+                free(event);
+                return BANK_ERROR_QUEUE_OP;
+            }
+            free(event);
+            return BANK_SUCCESS;
+        }
+    }
+
+    destroy_customer(customer);
+    free(event);
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 处理第二个队列中的客户
+ */
+int process_queue2(BankSystem* bank) {
+    if (!bank) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+    
+    if (is_queue_empty(&bank->queue2)) {
+        return BANK_SUCCESS;
+    }
+
+    bank_log(bank, LOG_LEVEL_DEBUG, "Processing waiting queue customers");
+
+    // 记录处理前的银行资金
+    int money_before = bank->total_money;
+    int processed_count = 0;
+
+    // 创建临时队列存储无法处理的客户
+    Queue temp_queue;
+    if (init_queue(&temp_queue) != BANK_SUCCESS) {
+        bank_log(bank, LOG_LEVEL_ERROR, "Failed to initialize temp queue");
+        return BANK_ERROR_QUEUE_OP;
+    }
+
+    Customer* customer = dequeue(&bank->queue2);
+    while (customer != NULL) {
+        // 检查银行是否有足够资金处理该客户
+        if (bank->total_money >= abs(customer->amount)) {
+            // 可以处理
+            bank->total_money += customer->amount;
+            int stay_time = bank->current_time - customer->arrive_time;
+            bank->total_wait_time += stay_time;
+            processed_count++;
+
+            bank_log(bank, LOG_LEVEL_INFO, "  Time %d: Waiting customer %d completed transaction, amount %d, total stay time %d", 
+                     bank->current_time, customer->id, customer->amount, stay_time);
+            bank_log(bank, LOG_LEVEL_INFO, "  Bank money changed by %d, current total %d", 
+                     customer->amount, bank->total_money);
+
+            destroy_customer(customer);
+        } else {
+            // 仍然无法处理，放回临时队列
+            if (enqueue(&temp_queue, customer) != BANK_SUCCESS) {
+                bank_log(bank, LOG_LEVEL_ERROR, "Failed to enqueue customer %d to temp queue", customer->id);
+                destroy_customer(customer);
+            }
+        }
+
+        // 检查是否应该停止处理
+        if (bank->total_money <= money_before || processed_count > 100) {
+            // 将当前客户重新放回队列
+            if (customer != NULL && enqueue(&temp_queue, customer) != BANK_SUCCESS) {
+                bank_log(bank, LOG_LEVEL_ERROR, "Failed to enqueue customer %d to temp queue", customer->id);
+                destroy_customer(customer);
+            }
+            break;
+        }
+
+        customer = dequeue(&bank->queue2);
+    }
+
+    // 将未处理的客户移回等待队列
+    while (!is_queue_empty(&temp_queue)) {
+        Customer* temp_customer = dequeue(&temp_queue);
+        if (temp_customer && enqueue(&bank->queue2, temp_customer) != BANK_SUCCESS) {
+            bank_log(bank, LOG_LEVEL_ERROR, "Failed to enqueue customer %d back to waiting queue", temp_customer->id);
+            destroy_customer(temp_customer);
+        }
+    }
+
+    bank_log(bank, LOG_LEVEL_DEBUG, "Finished processing waiting queue");
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 运行模拟
+ */
+int run_simulation(BankSystem* bank) {
+    if (!bank) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    bank_log(bank, LOG_LEVEL_INFO, "Bank simulation started");
+    bank_log(bank, LOG_LEVEL_INFO, "Initial money: %d", bank->total_money);
+    bank_log(bank, LOG_LEVEL_INFO, "Close time: %d", bank->close_time);
+    bank_log(bank, LOG_LEVEL_INFO, "========================");
+
+    while (bank->event_list != NULL) {
+        Event* event = get_next_event(&bank->event_list);
+        if (event == NULL) {
+            break;
+        }
+
+        bank->current_time = event->occur_time;
+
+        // 如果已经超过关门时间，结束营业
+        if (bank->current_time >= bank->close_time) {
+            bank_log(bank, LOG_LEVEL_INFO, "Time %d: Bank closed, business ended", bank->current_time);
+            if (event->customer) {
+                destroy_customer(event->customer);
+            }
+            free(event);
+            break;
+        }
+
+        int result;
+        if (event->event_type == EVENT_ARRIVE) {
+            // 到达事件
+            result = handle_arrive_event(bank, event);
+        } else {
+            // 离开事件
+            result = handle_leave_event(bank, event);
+        }
+        
+        // 如果处理事件时出现严重错误，停止模拟
+        if (result != BANK_SUCCESS && result != BANK_ERROR_EVENT_OP) {
+            bank_log(bank, LOG_LEVEL_ERROR, "Error occurred during event processing, stopping simulation");
+            return result;
+        }
+    }
+
+    // 处理完所有事件后，处理队列1中剩余的客户
+    bank_log(bank, LOG_LEVEL_INFO, "========================");
+    bank_log(bank, LOG_LEVEL_INFO, "Processing remaining customers");
+
+    while (!is_queue_empty(&bank->queue1)) {
+        Customer* customer = dequeue(&bank->queue1);
+        if (customer) {
+            int stay_time = bank->current_time - customer->arrive_time;
+            bank->total_wait_time += stay_time;
+            bank_log(bank, LOG_LEVEL_INFO, "Time %d: Customer %d left (business ended), total stay time %d", 
+                     bank->current_time, customer->id, stay_time);
+            destroy_customer(customer);
+        }
+    }
+
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 打印统计信息
+ */
+int print_statistics(const BankSystem* bank) {
+    if (!bank) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    printf("========================\n");
+    printf("Simulation completed, statistics:\n");
+    printf("Total customers: %d\n", bank->total_customers);
+    printf("Total wait time: %lld minutes\n", bank->total_wait_time);
+
+    if (bank->total_customers > 0) {
+        double avg_stay_time = (double)bank->total_wait_time / bank->total_customers;
+        printf("Average stay time: %.2f minutes\n", avg_stay_time);
+    }
+
+    printf("Final bank money: %d yuan\n", bank->total_money);
+    printf("Remaining customers in waiting queue: %d\n", get_queue_size(&bank->queue2));
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 写日志
+ */
+int bank_log(const BankSystem* bank, LogLevel level, const char* format, ...) {
+    if (!bank || level < bank->log_level) {
+        return BANK_SUCCESS;
+    }
+
+    // 如果没有启用日志，直接返回
+    if (!bank->log_fp) {
+        return BANK_SUCCESS;
+    }
+
+    // 获取当前时间
+    time_t now;
+    time(&now);
+    struct tm* local_time = localtime(&now);
+
+    // 写入日志级别和时间
+    fprintf(bank->log_fp, "[%04d-%02d-%02d %02d:%02d:%02d][%s] ", 
+            local_time->tm_year + 1900,
+            local_time->tm_mon + 1,
+            local_time->tm_mday,
+            local_time->tm_hour,
+            local_time->tm_min,
+            local_time->tm_sec,
+            log_level_strings[level]);
+
+    // 写入日志内容
+    va_list args;
+    va_start(args, format);
+    vfprintf(bank->log_fp, format, args);
+    va_end(args);
+
+    fprintf(bank->log_fp, "\n");
+    fflush(bank->log_fp);
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 加载配置文件
+ */
+int load_config(BankConfig* config, const char* filename) {
+    if (!config || !filename) {
+        return BANK_ERROR_INVALID_PARAM;
+    }
+
+    FILE* fp = fopen(filename, "r");
+    if (!fp) {
+        return BANK_ERROR_FILE_OP;
+    }
+
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), fp)) {
+        // 跳过注释和空行
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') {
+            continue;
+        }
+
+        char key[MAX_LINE_LENGTH];
+        char value[MAX_LINE_LENGTH];
+
+        if (sscanf(line, "%s = %s", key, value) == 2) {
+            if (strcmp(key, "initial_money") == 0) {
+                config->initial_money = atoi(value);
+            } else if (strcmp(key, "close_time") == 0) {
+                config->close_time = atoi(value);
+            } else if (strcmp(key, "enable_log") == 0) {
+                config->enable_log = atoi(value);
+            } else if (strcmp(key, "log_level") == 0) {
+                config->log_level = (LogLevel)atoi(value);
+            } else if (strcmp(key, "log_file") == 0) {
+                strncpy(config->log_file, value, sizeof(config->log_file) - 1);
+                config->log_file[sizeof(config->log_file) - 1] = '\0';
+            }
+        }
+    }
+
+    fclose(fp);
+    return BANK_SUCCESS;
+}
+\end{lstlisting}
+
+\subsubsection{main.c}
+\begin{lstlisting}[language=C,caption=main.c]
+/**
+ * @file main.c
+ * @brief 银行模拟系统主程序
+ * @author Yang Hengyi
+ * @version 1.0
+ * @date 2025-11-27
+ */
+
+#include "../include/bank_simulation.h"
+#include <unistd.h>
+
+/**
+ * @brief 打印帮助信息
+ */
+void print_help(const char* program_name) {
+    printf("Usage: %s [options]\n", program_name);
+    printf("Options:\n");
+    printf("  -h, --help              Show this help message\n");
+    printf("  -c, --config <file>     Specify configuration file\n");
+    printf("  -m, --money <amount>    Set initial money (default: 10000)\n");
+    printf("  -t, --time <minutes>    Set close time in minutes (default: 600)\n");
+    printf("  -l, --log               Enable logging\n");
+    printf("  -v, --verbose           Enable verbose logging (DEBUG level)\n");
+    printf("\n");
+    printf("Examples:\n");
+    printf("  %s                          # Run with default settings\n", program_name);
+    printf("  %s -m 5000 -t 300          # Run with 5000 initial money and 300 minutes\n", program_name);
+    printf("  %s -c config.ini           # Run with configuration file\n", program_name);
+    printf("  %s -l -v                   # Run with verbose logging\n", program_name);
+}
+
+/**
+ * @brief 创建默认配置文件
+ */
+int create_default_config(const char* filename) {
+    FILE* fp = fopen(filename, "w");
+    if (!fp) {
+        return BANK_ERROR_FILE_OP;
+    }
+
+    fprintf(fp, "# 银行模拟系统配置文件\n");
+    fprintf(fp, "\n");
+    fprintf(fp, "# 初始资金\n");
+    fprintf(fp, "initial_money = 10000\n");
+    fprintf(fp, "\n");
+    fprintf(fp, "# 营业时间（分钟）\n");
+    fprintf(fp, "close_time = 600\n");
+    fprintf(fp, "\n");
+    fprintf(fp, "# 是否启用日志\n");
+    fprintf(fp, "enable_log = 1\n");
+    fprintf(fp, "\n");
+    fprintf(fp, "# 日志级别 (0=DEBUG, 1=INFO, 2=WARN, 3=ERROR)\n");
+    fprintf(fp, "log_level = 1\n");
+    fprintf(fp, "\n");
+    fprintf(fp, "# 日志文件路径\n");
+    fprintf(fp, "log_file = bank_simulation.log\n");
+
+    fclose(fp);
+    return BANK_SUCCESS;
+}
+
+/**
+ * @brief 主函数
+ */
+int main(int argc, char* argv[]) {
+    // 设置随机数种子
+    srand((unsigned int)time(NULL));
+
+    // 初始化默认配置
+    BankConfig config = {
+        .initial_money = DEFAULT_INITIAL_MONEY,
+        .close_time = DEFAULT_CLOSE_TIME,
+        .enable_log = 0,
+        .log_level = LOG_LEVEL_INFO,
+        .log_file = ""
+    };
+
+    // 解析命令行参数
+    int opt;
+    while ((opt = getopt(argc, argv, "hc:m:t:lv")) != -1) {
+        switch (opt) {
+            case 'h':
+                print_help(argv[0]);
+                return 0;
+            case 'c':
+                if (load_config(&config, optarg) != BANK_SUCCESS) {
+                    fprintf(stderr, "Error: Failed to load config file %s\n", optarg);
+                    return 1;
+                }
+                break;
+            case 'm':
+                config.initial_money = atoi(optarg);
+                break;
+            case 't':
+                config.close_time = atoi(optarg);
+                break;
+            case 'l':
+                config.enable_log = 1;
+                if (strlen(config.log_file) == 0) {
+                    strncpy(config.log_file, "bank_simulation.log", sizeof(config.log_file) - 1);
+                }
+                break;
+            case 'v':
+                config.log_level = LOG_LEVEL_DEBUG;
+                break;
+            default:
+                print_help(argv[0]);
+                return 1;
+        }
+    }
+
+    // 如果启用了日志但没有指定日志文件，使用默认文件名
+    if (config.enable_log && strlen(config.log_file) == 0) {
+        strncpy(config.log_file, "bank_simulation.log", sizeof(config.log_file) - 1);
+    }
+
+    // 创建默认配置文件（如果不存在）
+    if (access("config.ini", F_OK) == -1) {
+        if (create_default_config("config.ini") != BANK_SUCCESS) {
+            fprintf(stderr, "Warning: Failed to create default config file\n");
+        }
+    }
+
+    printf("Bank Simulation System\n");
+    printf("======================\n");
+    printf("Initial money: %d\n", config.initial_money);
+    printf("Close time: %d minutes\n", config.close_time);
+    if (config.enable_log) {
+        printf("Logging enabled, level: %d, file: %s\n", config.log_level, config.log_file);
+    }
+    printf("\n");
+
+    // 初始化银行系统
+    BankSystem bank;
+    if (init_bank_system(&bank, &config) != BANK_SUCCESS) {
+        fprintf(stderr, "Error: Failed to initialize bank system\n");
+        return 1;
+    }
+
+    // 运行模拟
+    printf("Running simulation...\n");
+    if (run_simulation(&bank) != BANK_SUCCESS) {
+        fprintf(stderr, "Error: Failed to run simulation\n");
+        destroy_bank_system(&bank);
+        return 1;
+    }
+
+    // 打印统计信息
+    if (print_statistics(&bank) != BANK_SUCCESS) {
+        fprintf(stderr, "Error: Failed to print statistics\n");
+        destroy_bank_system(&bank);
+        return 1;
+    }
+
+    // 销毁银行系统
+    if (destroy_bank_system(&bank) != BANK_SUCCESS) {
+        fprintf(stderr, "Error: Failed to destroy bank system\n");
+        return 1;
+    }
+
+    return 0;
+}
+\end{lstlisting}
+
+\subsection{Makefile}
+\begin{lstlisting}[caption=Makefile]
+# 银行模拟系统 Makefile
+
+# 编译器
+CC = gcc
+
+# 编译选项
+CFLAGS = -Wall -Wextra -std=c99 -g -O2 -pedantic
+CFLAGS += -D_DEFAULT_SOURCE  # 用于兼容较新的Linux系统
+
+# 包含目录
+INCLUDES = -Iinclude
+
+# 目标文件
+TARGET = bin/bank_simulation
+
+# 源文件目录
+SRC_DIR = src
+INC_DIR = include
+BIN_DIR = bin
+
+# 源文件
+SRCS = $(SRC_DIR)/bank_simulation.c $(SRC_DIR)/main.c
+
+# 对象文件
+OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BIN_DIR)/%.o)
+
+# 依赖文件
+DEPS = $(OBJS:.o=.d)
+
+# 默认目标
+all: directories $(TARGET)
+
+# 创建所需目录
+directories:
+	@mkdir -p $(BIN_DIR)
+
+# 链接目标文件
+$(TARGET): $(OBJS)
+	$(CC) $(OBJS) -o $@
+	@echo "Build successful: $@"
+
+# 编译源文件（包含依赖关系）
+$(BIN_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
+
+# 包含自动生成的依赖文件
+-include $(DEPS)
+
+# 清理生成文件
+clean:
+	rm -rf $(BIN_DIR) $(TARGET)
+
+# 重新编译
+rebuild: clean all
+
+# 运行程序
+run: $(TARGET)
+	./$(TARGET)
+
+# 安装（示例）
+install: $(TARGET)
+	cp $(TARGET) /usr/local/bin/
+
+# 显示变量（调试用）
+print-vars:
+	@echo "SRCS: $(SRCS)"
+	@echo "OBJS: $(OBJS)"
+	@echo "DEPS: $(DEPS)"
+
+.PHONY: all clean rebuild run install print-vars directories
+\end{lstlisting}
+
+\end{document}
+```
+
+```

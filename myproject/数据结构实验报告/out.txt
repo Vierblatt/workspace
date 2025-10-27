@@ -1,0 +1,21 @@
+Initial table:
+Bucket 0: (empty)
+Bucket 1: (empty)
+Bucket 2: (-6,-60) (2,20) (10,100) (18,180) (26,260) 
+Bucket 3: (3,30) 
+Bucket 4: (empty)
+Bucket 5: (empty)
+Bucket 6: (empty)
+Bucket 7: (empty)
+Found 18 -> 180
+Found 3 -> 30
+After deleting 18:
+Bucket 0: (empty)
+Bucket 1: (empty)
+Bucket 2: (-6,-60) (2,20) (10,100) (26,260) 
+Bucket 3: (3,30) 
+Bucket 4: (empty)
+Bucket 5: (empty)
+Bucket 6: (empty)
+Bucket 7: (empty)
+Count = 5
