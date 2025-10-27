@@ -1,1 +1,1 @@
-在 C:\workspace 中找不到 CMakeLists.txt 选择 CMakeLists.txt
+CMakeLists.txt not found in /home/henry/Documents/workspace Select CMakeLists.txt
