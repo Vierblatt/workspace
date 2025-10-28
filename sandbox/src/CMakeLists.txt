@@ -13,8 +13,7 @@ add_executable(linkqueue_demo
 add_executable(hash_map_chaining_demo
     ../new/main.c
     ../new/hash_map_chaining.c
-        ../实验报告杨恒熠+3124009862/RBTree_Hash.cpp
-        ../实验报告杨恒熠+3124009862/RBTree_Hash.h
-        ../实验报告杨恒熠+3124009862/main.cpp
-        ../hash_rbt_project/name_storage.c
+        ../../myproject/数据结构实验报告/RBTree_Hash.cpp
+        ../../myproject/数据结构实验报告/RBTree_Hash.h
+        ../../myproject/数据结构实验报告/main.cpp
 )
